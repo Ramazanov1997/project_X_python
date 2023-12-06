@@ -2,6 +2,7 @@ import telebot
 from telebot import types
 import psycopg2
 import logging
+import base64 
 
 db_params = {
     'dbname': 'postgres',
@@ -57,12 +58,12 @@ def get_product_by_id(product_id):
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     markup = types.ReplyKeyboardMarkup()
-    get_product = types.KeyboardButton('/get_product')
+    get_image_button = types.KeyboardButton('/get_image')
     reg = types.KeyboardButton("/reg")
-    help = types.KeyboardButton('/help')
-    login_button = types.KeyboardButton('/login_button') 
-    markup.add(reg, help, login_button, get_product)  # Убрана кнопка /login
-    bot.reply_to(message, "Привет! Я бот. Как дела?", reply_markup=markup)
+    help_button = types.KeyboardButton('/help')
+    login_button = types.KeyboardButton('/login_button')
+    markup.add(reg, help_button, login_button, get_image_button)  
+    bot.reply_to(message, "Welcome! Press /get_image to receive an image from the database.", reply_markup=markup)
 
 @bot.message_handler(commands=['help'])
 def handle_help(message):
@@ -108,15 +109,25 @@ def handle_login_button(message):
     bot.reply_to(message, "Введите свой логин и пароль для входа:", reply_markup=markup)
     user_data[message.chat.id] = {"step": "login_button"}
 
-@bot.message_handler(func=lambda message: user_data.get(message.chat.id) and user_data[message.chat.id]["step"] == "login_button")
-def handle_login_button_input(message):
-    login, password = message.text.strip().split()
-    user_authenticated = check_user_password(login, password)
-    
-    if user_authenticated:
-        bot.send_message(message.chat.id, f'Вы успешно вошли как {login}!')
+def get_all_products():
+    query = "SELECT id, name, price FROM products"
+    result = execute_query(query)
+    return result
+
+# Функция для получения товара по его ID из таблицы products
+def get_product_by_id(product_id):
+    query = "SELECT id, name, price FROM products WHERE id = %s"
+    result = execute_query(query, (product_id,))
+    return result[0] if result else None
+
+@bot.message_handler(commands=['get_all_products'])
+def handle_get_all_products(message):
+    products = get_all_products()
+    if products:
+        all_products_info = "\n".join([f"ID товара: {product[0]}\nНазвание: {product[1]}\nЦена: {product[2]}\n" for product in products])
+        bot.send_message(message.chat.id, all_products_info)
     else:
-        bot.send_message(message.chat.id, 'Неправильный логин или пароль. Попробуйте снова или зарегистрируйтесь.')
+        bot.send_message(message.chat.id, 'Товары не найдены')
 
 def is_login_unique(login):
 
@@ -128,6 +139,35 @@ def check_user_password(login, password):
     query = "SELECT * FROM users WHERE login = %s AND password = %s"
     result = execute_query(query, (login, password))
     return result is not None
+
+@bot.message_handler(commands=['get_image'])
+def handle_get_image(message):
+    image_id = 1  
+    image_data = get_image_from_database(image_id)
+    
+    if image_data:
+        bot.send_photo(message.chat.id, image_data, caption='Here is your image!')
+    else:
+        bot.send_message(message.chat.id, 'Image not found in the database.')
+
+def get_image_from_database(image_id):
+    try:
+        query = "SELECT image_url FROM images WHERE id = %s"
+        result = execute_query(query, (image_id,))
+        
+        if result:
+            image_url = result[0][0]
+            image_url_str = image_url.tobytes().decode('utf-8')
+            _, image_data = image_url_str.split(',', 1)
+            byte_data = base64.b64decode(image_data)
+            return byte_data
+        else:
+            print("Image not found in the database.")
+            return None
+    except Exception as e:
+        print("Error retrieving image from the database:", str(e))
+        return None
+
 
 if __name__ == "__main__": 
     bot.polling(none_stop=True)
