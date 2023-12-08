@@ -2,7 +2,8 @@ import telebot
 from telebot import types
 import psycopg2
 import logging
-
+import base64 
+import io
 db_params = {
     'dbname': 'postgres',
     'user': 'postgres',
@@ -35,6 +36,20 @@ def execute_query(query, values=None):
         conn.close()
     return result
 
+
+conn = psycopg2.connect(**db_params)
+cur = conn.cursor()
+
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS products (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        price DECIMAL(10, 2) NOT NULL,
+        pic bytea
+    )
+""")
+conn.commit()
+
 @bot.message_handler(commands=['get_product'])
 def handle_duct(message):
     bot.send_message(message.chat.id, 'Введите ID товара:')
@@ -57,7 +72,7 @@ def process_product_id(message):
 
 
 def get_product_by_id_with_photo(product_id):
-    cur.execute("SELECT * FROM products WHERE id = %s", (product_id,))
+    cur.execute("SELECT * FROM products_msi WHERE id = %s", (product_id,))
     return cur.fetchone()
 
 @bot.message_handler(commands=['start'])
