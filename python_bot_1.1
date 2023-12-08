@@ -67,9 +67,9 @@ def handle_start(message):
     help_button = types.KeyboardButton(text = 'Тех поддержка')
     login_button = types.KeyboardButton(text = 'Логин Пользователя')
     catalog_button = types.KeyboardButton(text = 'Каталог товаров')
-    cart_button = types.KeyboardButton(text = 'Корзина')
-    favorites_button = types.KeyboardButton('/favorites')
-    add_to_favorites_button = types.KeyboardButton('/add_to_favorites')
+    cart_button = types.KeyboardButton(text = '/Корзина')
+    favorites_button = types.KeyboardButton(text = 'Избранное')
+    add_to_favorites_button = types.KeyboardButton('Добавить в избранное')
     markup.add(reg, help_button, login_button,catalog_button,cart_button,favorites_button,add_to_favorites_button)  
     bot.reply_to(message, "Здравствуйте, как ваши дела?", reply_markup=markup)
 
@@ -167,10 +167,10 @@ def handle_catalog(message):
     display_catalog(message.chat.id)
 
 
-@bot.message_handler(commands=['favorites'])
+@bot.message_handler(commands=['Избранное'])
 def handle_favorites(message):
     user_id = message.chat.id
-    favorites = user_data.get(user_id, {}).get('favorites', [])
+    favorites = user_data.get(user_id, {}).get('Избранное', [])
     
     if favorites:
         favorites_info = "\n".join([f"ID товара: {product['id']}\nНазвание: {product['name']}\nЦена: {product['price']}\n" for product in favorites])
@@ -182,8 +182,8 @@ def handle_favorites(message):
 @bot.message_handler(commands=['Корзина'])
 def handle_cart(message):
     markup = types.ReplyKeyboardMarkup()
-    add_to_cart_button = types.KeyboardButton(text = 'Добавить в Корзину')
-    markup.add = (add_to_cart_button)
+    add_to_cart_button = types.KeyboardButton(text='Добавить в Корзину')
+    markup.add(add_to_cart_button)
     user_id = message.chat.id
     cart = user_data.get(user_id, {}).get('Корзина', [])
     if cart:
@@ -193,7 +193,7 @@ def handle_cart(message):
         bot.send_message(message.chat.id, 'Корзина пуста')
 
 
-@bot.message_handler(commands=['add_to_favorites'])
+@bot.message_handler(commands=['Добавить в избранное'])
 def handle_add_to_favorites(message):
     user_id = message.chat.id
     bot.send_message(message.chat.id, 'Введите ID товара для добавления в избранное:')
@@ -219,7 +219,7 @@ def process_add_to_favorites(message):
         bot.send_message(message.chat.id, 'Товар с указанным ID не найден')
 
 
-@bot.message_handler(commands=['add_to_cart'])
+@bot.message_handler(commands=['Добавить в корзину'])
 def handle_add_to_cart(message):
     user_id = message.chat.id
     bot.send_message(message.chat.id, 'Введите ID товара для добавления в корзину:')
