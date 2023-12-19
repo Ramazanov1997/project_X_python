@@ -7,6 +7,8 @@ try:
         with conn.cursor() as cursor:
             bot = telebot.TeleBot('6677133821:AAGnImXMls88-1QUZQRvcsay7PdxmEuv1bM')
 
+            admin_session = None
+
             def get_main_keyboard():
                 markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
                 item_products = types.KeyboardButton('Продукты')
@@ -14,13 +16,55 @@ try:
                 item_add_product = types.KeyboardButton('Добавить продукт')
                 item_delete_product = types.KeyboardButton('Удалить продукт')
                 item_delete_user = types.KeyboardButton('Удалить пользователя')
-                markup.add(item_products, item_users, item_add_product, item_delete_product, item_delete_user)
+                markup.add(item_products, item_users, item_add_product, item_delete_product, item_delete_user,)
                 return markup
 
-            @bot.message_handler(commands=['start'])
+            def start_message(message):
+                global admin_session
+                try:
+                    bot.send_message(message.chat.id, "Пожалуйста, введите логин:")
+                    bot.register_next_step_handler(message, handle_start)
+                except Exception as e:
+                    print(f"Error handling start message: {e}")
+                    bot.send_message(message.chat.id, f"Ошибка: {e}")
+
             def handle_start(message):
-                markup = get_main_keyboard()
-                bot.send_message(message.chat.id, "Добро пожаловать! Это ваша админ-панель.", reply_markup=markup)
+                global admin_session
+                try:
+                    admin_login = message.text.strip()
+                    cursor.execute("SELECT * FROM admin WHERE name = %s", (admin_login,))
+                    admin_data = cursor.fetchone()
+
+                    if admin_data:
+                        admin_session = admin_login
+                        markup = get_main_keyboard()
+                        bot.send_message(message.chat.id, f"Вы успешно вошли в аккаунт администратора, {admin_login}.", reply_markup=markup)
+                    else:
+                        bot.send_message(message.chat.id, "Неверный логин. Попробуйте снова.")
+                        start_message(message)
+                except Exception as e:
+                    print(f"Error handling start: {e}")
+                    bot.send_message(message.chat.id, f"Ошибка: {e}")
+
+            @bot.message_handler(commands=['start'])
+            def start(message):
+                start_message(message)
+        
+            @bot.message_handler(func=lambda message: message.text == 'Пользователи')
+            def handle_users(message):
+                try:
+                    cursor.execute("SELECT * FROM users")
+                    users = cursor.fetchall()
+
+                    user_list = "\n".join([f"Логин: {user[0]}\nПароль: {user[1]}" for user in users])
+                    bot.send_message(message.chat.id, user_list)
+
+                    markup = get_main_keyboard()
+                    bot.send_message(message.chat.id, "Список пользователей отправлен.", reply_markup=markup)
+
+                except psycopg2.Error as e:
+                    print(f"Database error: {e}")
+                    bot.send_message(message.chat.id, f"Ошибка при получении пользователей: {e}")
 
             @bot.message_handler(func=lambda message: message.text == 'Продукты')
             def handle_products(message):
@@ -145,11 +189,10 @@ try:
 
             @bot.message_handler(func=lambda message: True)
             def handle_other(message):
-                markup = get_main_keyboard()
-                bot.send_message(message.chat.id, "Я не понимаю эту команду.", reply_markup=markup)
-
+                bot.send_message(message.chat.id, "Я не понимаю эту команду.")
+            
+            
             bot.polling()
-
 except Exception as e:
     print(f"Ошибка при подключении к базе данных: {e}")
     exit()
