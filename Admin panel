@@ -1,0 +1,155 @@
+import telebot
+import psycopg2
+from telebot import types
+
+try:
+    with psycopg2.connect(user='postgres', password='123', host='localhost', database='postgres', port='5432') as conn:
+        with conn.cursor() as cursor:
+            bot = telebot.TeleBot('6677133821:AAGnImXMls88-1QUZQRvcsay7PdxmEuv1bM')
+
+            def get_main_keyboard():
+                markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+                item_products = types.KeyboardButton('Продукты')
+                item_users = types.KeyboardButton('Пользователи')
+                item_add_product = types.KeyboardButton('Добавить продукт')
+                item_delete_product = types.KeyboardButton('Удалить продукт')
+                item_delete_user = types.KeyboardButton('Удалить пользователя')
+                markup.add(item_products, item_users, item_add_product, item_delete_product, item_delete_user)
+                return markup
+
+            @bot.message_handler(commands=['start'])
+            def handle_start(message):
+                markup = get_main_keyboard()
+                bot.send_message(message.chat.id, "Добро пожаловать! Это ваша админ-панель.", reply_markup=markup)
+
+            @bot.message_handler(func=lambda message: message.text == 'Продукты')
+            def handle_products(message):
+                try:
+                    cursor.execute("SELECT * FROM products")
+                    products = cursor.fetchall()
+
+                    for product in products:
+                        bot.send_message(message.chat.id, f"Название: {product[1]}\nЦена: {product[2]}")
+
+                    markup = get_main_keyboard()
+                    bot.send_message(message.chat.id, "Список продуктов отправлен.", reply_markup=markup)
+
+                except psycopg2.Error as e:
+                    print(f"Database error: {e}")
+                    bot.send_message(message.chat.id, f"Ошибка при получении продуктов: {e}")
+
+            @bot.message_handler(func=lambda message: message.text == 'Добавить продукт')
+            def handle_add_product(message):
+                try:
+                    bot.send_message(message.chat.id, "Введите название продукта:")
+                    bot.register_next_step_handler(message, handle_product_name)
+
+                except Exception as e:
+                    print(f"Error requesting product name: {e}")
+                    bot.send_message(message.chat.id, f"Ошибка при запросе названия продукта: {e}")
+
+            def handle_product_name(message):
+                try:
+                    product_name = message.text.strip()
+
+                    bot.send_message(message.chat.id, "Введите цену продукта:")
+                    bot.register_next_step_handler(message, handle_product_price, product_name)
+
+                except Exception as e:
+                    print(f"Error handling product name: {e}")
+                    bot.send_message(message.chat.id, f"Ошибка при обработке названия продукта: {e}")
+
+            def handle_product_price(message, product_name):
+                try:
+                    product_price = float(message.text.strip())
+
+                
+                    insert_query = "INSERT INTO products (name, price) VALUES (%s, %s)"
+                    cursor.execute(insert_query, (product_name, product_price))
+                    conn.commit()
+
+                    bot.send_message(message.chat.id, f"Продукт '{product_name}' успешно добавлен с ценой {product_price}.")
+
+                except ValueError:
+                    bot.send_message(message.chat.id, "Ошибка! Введите корректную цену (число). Попробуйте снова.")
+
+                except Exception as e:
+                    print(f"Error handling product price: {e}")
+                    bot.send_message(message.chat.id, f"Ошибка при обработке цены продукта: {e}")
+
+                markup = get_main_keyboard()
+                bot.send_message(message.chat.id, "Операция добавления продукта завершена.", reply_markup=markup)
+
+            @bot.message_handler(func=lambda message: message.text == 'Удалить продукт')
+            def handle_delete_product_request(message):
+                try:
+                    markup = types.ReplyKeyboardRemove(selective=False)
+                    bot.send_message(message.chat.id, "Пожалуйста, укажите ID продукта для удаления:", reply_markup=markup)
+
+                    
+                    bot.register_next_step_handler(message, handle_delete_product)
+
+                except Exception as e:
+                    print(f"Error requesting product ID for deletion: {e}")
+                    bot.send_message(message.chat.id, f"Ошибка при запросе ID продукта для удаления: {e}")
+
+            def handle_delete_product(message):
+                try:
+                    product_id_to_delete = int(message.text.strip())
+
+                    delete_query = "DELETE FROM products WHERE id = %s"
+                    cursor.execute(delete_query, (product_id_to_delete,))
+                    conn.commit()
+
+                    bot.send_message(message.chat.id, f"Продукт с ID {product_id_to_delete} успешно удален.")
+
+                except ValueError:
+                    bot.send_message(message.chat.id, "Ошибка! Введите корректный ID (целое число). Попробуйте снова.")
+
+                except Exception as e:
+                    print(f"Error deleting product: {e}")
+                    bot.send_message(message.chat.id, f"Ошибка при удалении продукта: {e}")
+
+                markup = get_main_keyboard()
+                bot.send_message(message.chat.id, "Операция удаления продукта завершена.", reply_markup=markup)
+
+            @bot.message_handler(func=lambda message: message.text == 'Удалить пользователя')
+            def handle_delete_user_request(message):
+                try:
+                    markup = types.ReplyKeyboardRemove(selective=False)
+                    bot.send_message(message.chat.id, "Пожалуйста, укажите логин пользователя для удаления:", reply_markup=markup)
+
+                    
+                    bot.register_next_step_handler(message, handle_delete_user)
+
+                except Exception as e:
+                    print(f"Error requesting user login for deletion: {e}")
+                    bot.send_message(message.chat.id, f"Ошибка при запросе логина пользователя для удаления: {e}")
+
+            def handle_delete_user(message):
+                try:
+                    login_to_delete = message.text.strip()
+
+                    delete_query = "DELETE FROM users WHERE login = %s"
+                    cursor.execute(delete_query, (login_to_delete,))
+                    conn.commit()
+
+                    bot.send_message(message.chat.id, f"Пользователь с логином '{login_to_delete}' успешно удален.")
+
+                except Exception as e:
+                    print(f"Error deleting user: {e}")
+                    bot.send_message(message.chat.id, f"Ошибка при удалении пользователя: {e}")
+
+                markup = get_main_keyboard()
+                bot.send_message(message.chat.id, "Операция удаления пользователя завершена.", reply_markup=markup)
+
+            @bot.message_handler(func=lambda message: True)
+            def handle_other(message):
+                markup = get_main_keyboard()
+                bot.send_message(message.chat.id, "Я не понимаю эту команду.", reply_markup=markup)
+
+            bot.polling()
+
+except Exception as e:
+    print(f"Ошибка при подключении к базе данных: {e}")
+    exit()
