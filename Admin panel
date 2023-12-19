@@ -73,7 +73,7 @@ try:
                     products = cursor.fetchall()
 
                     for product in products:
-                        bot.send_message(message.chat.id, f"Название: {product[1]}\nЦена: {product[2]}")
+                        bot.send_message(message.chat.id, f"ID: {product[0]}\nНазвание: {product[1]}\nЦена: {product[2]}")
 
                     markup = get_main_keyboard()
                     bot.send_message(message.chat.id, "Список продуктов отправлен.", reply_markup=markup)
@@ -145,6 +145,11 @@ try:
                     cursor.execute(delete_query, (product_id_to_delete,))
                     conn.commit()
 
+                    
+                    update_query = "SELECT setval('products_id_seq', (SELECT MAX(id) FROM products))"
+                    cursor.execute(update_query)
+                    conn.commit()
+
                     bot.send_message(message.chat.id, f"Продукт с ID {product_id_to_delete} успешно удален.")
 
                 except ValueError:
@@ -156,6 +161,7 @@ try:
 
                 markup = get_main_keyboard()
                 bot.send_message(message.chat.id, "Операция удаления продукта завершена.", reply_markup=markup)
+
 
             @bot.message_handler(func=lambda message: message.text == 'Удалить пользователя')
             def handle_delete_user_request(message):
