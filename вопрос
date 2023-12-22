@@ -1,95 +1,4 @@
-CREATE TABLE IF NOT EXISTS admin (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255)
-);
-
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    login VARCHAR(255) UNIQUE,
-    password VARCHAR(255)
-);
-
-CREATE TABLE IF NOT EXISTS products (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    price DECIMAL(10, 2) NOT NULL,
-    id_monitors SERIAL UNIQUE,
-    id_motherboards SERIAL UNIQUE,
-    id_laptops SERIAL UNIQUE,  
-    id_personal_computers SERIAL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS monitors (
-    id SERIAL PRIMARY KEY,
-    product_id INTEGER UNIQUE,
-	price decimal,
-	name varchar(255),
-    response_time varchar(255),
-    display decimal,
-    display_hz int,
-    matrix varchar(255),
-    resolution varchar(255),
-    color_depth varchar(255),
-    brightness int
-);
-
-CREATE TABLE IF NOT EXISTS motherboards (
-    id SERIAL PRIMARY KEY,
-    product_id INTEGER UNIQUE,
-	price decimal,
-	name varchar(255),
-    socket varchar(255),
-    chipset	varchar(255),
-    max_ram int,
-    type_ram varchar(255),
-    form_factor	varchar(255),
-    max_ram_hz int,
-    audio_chip varchar(255)
-);
-
-CREATE TABLE IF NOT EXISTS laptops (  
-    id SERIAL PRIMARY KEY,
-    product_id INTEGER UNIQUE,
-	name varchar(255),
-	price decimal,
-    brand VARCHAR(255),
-	processer_model varchar(255),
-    ram int,
-    ssd int,
-    display DECIMAL,
-    display_hz varchar(255),
-    video_card varchar(255),
-    FOREIGN KEY (product_id) REFERENCES products(id_laptops)
-);
-
-CREATE TABLE IF NOT EXISTS personal_computers (
-    id SERIAL PRIMARY KEY,
-    product_id INTEGER UNIQUE,
-    name varchar(255),
-	price decimal,
-	ssd int,
-	video_card varchar(255),
-	processor varchar(255),
-	ram INTEGER,
-    storage INTEGER,
-    FOREIGN KEY (product_id) REFERENCES products(id_personal_computers)
-);
-
-CREATE TABLE IF NOT EXISTS cart (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER,
-    product_id INTEGER,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (product_id) REFERENCES products(id)
-);
-
-CREATE TABLE IF NOT EXISTS user_data (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER,
-    cart TEXT[],
-    favorites TEXT[],
-    FOREIGN KEY (user_id) REFERENCES users(id)
-); import telebot
+import telebot
 import psycopg2
 from telebot import types
 
@@ -172,99 +81,7 @@ try:
             bot.send_message(message.chat.id, f"Ошибка при получении пользователей: {e}")
 
 
-    @bot.message_handler(func=lambda message: message.text == 'Продукты')
-    def handle_products(message):
-        try:
-            cursor.execute("SELECT * FROM products")
-            products = cursor.fetchall()
-
-            for product in products:
-                bot.send_message(message.chat.id, f"ID: {product[0]}\nНазвание: {product[1]}\nЦена: {product[2]}")
-
-            markup = get_main_keyboard()
-            bot.send_message(message.chat.id, "Список продуктов отправлен.", reply_markup=markup)
-
-        except psycopg2.Error as e:
-            print(f"Database error: {e}")
-            bot.send_message(message.chat.id, f"Ошибка при получении продуктов: {e}")
-
-    @bot.message_handler(func=lambda message: message.text == 'Добавить продукт')
-    def handle_add_product(message):
-        try:
-            bot.send_message(message.chat.id, "Введите название продукта:")
-            bot.register_next_step_handler(message, handle_product_name)
-
-        except Exception as e:
-            print(f"Error requesting product name: {e}")
-            bot.send_message(message.chat.id, f"Ошибка при запросе названия продукта: {e}")
-
-    def handle_product_name(message):
-        try:
-            product_name = message.text.strip()
-
-            bot.send_message(message.chat.id, "Введите цену продукта:")
-            bot.register_next_step_handler(message, handle_product_price, product_name)
-
-        except Exception as e:
-            print(f"Error handling product name: {e}")
-            bot.send_message(message.chat.id, f"Ошибка при обработке названия продукта: {e}")
-
-    def handle_product_price(message, product_name):
-        try:
-            product_price = float(message.text.strip())
-
-            insert_query = "INSERT INTO products (name, price) VALUES (%s, %s)"
-            cursor.execute(insert_query, (product_name, product_price))
-            conn.commit()
-
-            bot.send_message(message.chat.id, f"Продукт '{product_name}' успешно добавлен с ценой {product_price}.")
-
-        except ValueError:
-            bot.send_message(message.chat.id, "Ошибка! Введите корректную цену (число). Попробуйте снова.")
-
-        except Exception as e:
-            print(f"Error handling product price: {e}")
-            bot.send_message(message.chat.id, f"Ошибка при обработке цены продукта: {e}")
-
-        markup = get_main_keyboard()
-        bot.send_message(message.chat.id, "Операция добавления продукта завершена.", reply_markup=markup)
-
-    @bot.message_handler(func=lambda message: message.text == 'Удалить продукт')
-    def handle_delete_product_request(message):
-        try:
-            markup = types.ReplyKeyboardRemove(selective=False)
-            bot.send_message(message.chat.id, "Пожалуйста, укажите ID продукта для удаления:", reply_markup=markup)
-
-            bot.register_next_step_handler(message, handle_delete_product)
-
-        except Exception as e:
-            print(f"Error requesting product ID for deletion: {e}")
-            bot.send_message(message.chat.id, f"Ошибка при запросе ID продукта для удаления: {e}")
-
-    def handle_delete_product(message):
-        try:
-            product_id_to_delete = int(message.text.strip())
-
-            delete_query = "DELETE FROM products WHERE id = %s"
-            cursor.execute(delete_query, (product_id_to_delete,))
-            conn.commit()
-
-            update_query = "SELECT setval('products_id_seq', (SELECT MAX(id) FROM products))"
-            cursor.execute(update_query)
-            conn.commit()
-
-            bot.send_message(message.chat.id, f"Продукт с ID {product_id_to_delete} успешно удален.")
-
-        except ValueError:
-            bot.send_message(message.chat.id, "Ошибка! Введите корректный ID (целое число). Попробуйте снова.")
-
-        except Exception as e:
-            print(f"Error deleting product: {e}")
-            bot.send_message(message.chat.id, f"Ошибка при удалении продукта: {e}")
-
-        markup = get_main_keyboard()
-        bot.send_message(message.chat.id, "Операция удаления продукта завершена.", reply_markup=markup)
-
+   
     @bot.message_handler(func=lambda message: message.text == 'Удалить пользователя')
     def handle_delete_user_request(message):
         try:
@@ -330,17 +147,112 @@ try:
         bot.send_message(message.chat.id, "Я не понимаю эту команду.")
 
     bot.polling()
-
-except Exception as e:
-    print(f"Ошибка при подключении к базе данных: {e}")
-
-finally:
+@bot.message_handler(func=lambda message: message.text == 'Добавить продукт')
+def handle_add_product(message):
     try:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
-    except Exception as close_error:
-        print(f"Error closing the database connection: {close_error}")
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        item_monitors = types.KeyboardButton('Мониторы')
+        item_motherboards = types.KeyboardButton('Материнские платы')
+        item_laptops = types.KeyboardButton('Ноутбуки')
+        item_personal_computers = types.KeyboardButton('Персональные компьютеры')
+        markup.add(item_monitors, item_motherboards, item_laptops, item_personal_computers)
 
-    exit() мне нужно чтобы при команде добавление продуктов там был выбор какой из продуктов вам нужно (ноутбуки,ноутбуки и т.д
+        bot.send_message(message.chat.id, "Выберите категорию продукта для добавления:", reply_markup=markup)
+        bot.register_next_step_handler(message, handle_add_product_category)
+    except Exception as e:
+        print(f"Error handling add product request: {e}")
+        bot.send_message(message.chat.id, f"Ошибка при запросе добавления продукта: {e}")
+
+def handle_add_product_category(message):
+    try:
+        category = message.text.lower()
+        if category in ['мониторы', 'материнские платы', 'ноутбуки', 'персональные компьютеры']:
+            # В зависимости от категории вызывайте соответствующую функцию добавления продукта
+            if category == 'мониторы':
+                # Добавление монитора
+                add_monitor(message)
+            elif category == 'материнские платы':
+                # Добавление материнской платы
+                add_motherboard(message)
+            elif category == 'ноутбуки':
+                # Добавление ноутбука
+                add_laptop(message)
+            elif category == 'персональные компьютеры':
+                # Добавление персонального компьютера
+                add_personal_computer(message)
+        else:
+            bot.send_message(message.chat.id, "Некорректная категория. Попробуйте снова.")
+            handle_add_product(message)
+    except Exception as e:
+        print(f"Error handling add product category: {e}")
+        bot.send_message(message.chat.id, f"Ошибка при обработке категории добавления продукта: {e}")
+@bot.message_handler(func=lambda message: message.text == 'Продукты')
+def handle_view_products(message):
+    try:
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        item_monitors = types.KeyboardButton('Мониторы')
+        item_motherboards = types.KeyboardButton('Материнские платы')
+        item_laptops = types.KeyboardButton('Ноутбуки')
+        item_personal_computers = types.KeyboardButton('Персональные компьютеры')
+        markup.add(item_monitors, item_motherboards, item_laptops, item_personal_computers)
+
+        bot.send_message(message.chat.id, "Выберите категорию продукта для просмотра:", reply_markup=markup)
+        bot.register_next_step_handler(message, handle_view_products_category)
+    except Exception as e:
+        print(f"Error handling view products request: {e}")
+        bot.send_message(message.chat.id, f"Ошибка при запросе просмотра продуктов: {e}")
+
+def handle_view_products_category(message):
+    try:
+        category = message.text.lower()
+        if category in ['мониторы', 'материнские платы', 'ноутбуки', 'персональные компьютеры']:
+            # В зависимости от категории вызывайте соответствующую функцию просмотра продуктов
+            view_products(message, category)
+        else:
+            bot.send_message(message.chat.id, "Некорректная категория. Попробуйте снова.")
+            handle_view_products(message)
+    except Exception as e:
+        print(f"Error handling view products category: {e}")
+        bot.send_message(message.chat.id, f"Ошибка при обработке категории просмотра продуктов: {e}")
+@bot.message_handler(func=lambda message: message.text == 'Удалить продукт')
+def handle_delete_product(message):
+    try:
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        item_monitors = types.KeyboardButton('Мониторы')
+        item_motherboards = types.KeyboardButton('Материнские платы')
+        item_laptops = types.KeyboardButton('Ноутбуки')
+        item_personal_computers = types.KeyboardButton('Персональные компьютеры')
+        markup.add(item_monitors, item_motherboards, item_laptops, item_personal_computers)
+
+        bot.send_message(message.chat.id, "Выберите категорию продукта для удаления:", reply_markup=markup)
+        bot.register_next_step_handler(message, handle_delete_product_category)
+    except Exception as e:
+        print(f"Error handling delete product request: {e}")
+        bot.send_message(message.chat.id, f"Ошибка при запросе удаления продукта: {e}")
+
+def handle_delete_product_category(message):
+    try:
+        category = message.text.lower()
+        if category in ['мониторы', 'материнские платы', 'ноутбуки', 'персональные компьютеры']:
+            # В зависимости от категории вызывайте соответствующую функцию удаления продукта
+            delete_product(message, category)
+        else:
+            bot.send_message(message.chat.id, "Некорректная категория. Попробуйте снова.")
+            handle_delete_product(message)
+    except Exception as e:
+        print(f"Error handling delete product category: {e}")
+        bot.send_message(message.chat.id, f"Ошибка при обработке категории удаления продукта: {e}")
+
+    except Exception as e:
+        print(f"Ошибка при подключении к базе данных: {e}")
+
+    finally:
+        try:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+        except Exception as close_error:
+            print(f"Error closing the database connection: {close_error}")
+
+        exit()
